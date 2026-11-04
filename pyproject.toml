@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "litsieve"
+dynamic = ["version"]
+description = "Schema-validated LLM screening and extraction for literature reviews, with human-in-the-loop verification."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0",
+    "jsonschema>=4.21",
+    "openpyxl>=3.1",
+    "pandas>=2.1",
+    "requests>=2.31",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+litsieve = "litsieve.cli:app"
+
+[tool.hatch.version]
+path = "src/litsieve/__init__.py"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

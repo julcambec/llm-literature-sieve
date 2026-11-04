@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Review data never belongs in this repo; it lives in the private project
+data/
+exports/
+runs/
+fulltexts/
+*.xlsx
+*.xlsm
+*.jsonl
+*.pdf
+*.ris
+*.nbib
+# Test fixtures and the neutral example may contain small files of these types
+!tests/fixtures/**
+!examples/**
