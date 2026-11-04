@@ -1,0 +1,63 @@
+protocol_version: 1
+review_stage: 1
+
+rendering:
+  pubmed:   {join: ' OR ', wrap: '({terms})', query: '{formula} {date} {language}'}
+  openalex: {join: ' OR ', wrap: '({terms})', query: '{search_filter}:{formula},{date_filter}'}
+
+limits:
+  pubmed:
+    date: 'AND {start_year}:2026[dp]'
+    language: 'AND english[la]'
+  openalex:
+    search_filter: title_and_abstract.search
+    date_filter: 'publication_year:>{year_before_start}'
+    export_cap: 300
+
+concept_sets:
+  PL:
+    pubmed: ['"Plants"[Mesh]', 'houseplant*[tiab]', '"potted plant*"[tiab]']
+    openalex: ['houseplant', 'houseplants', '"potted plant"', '"potted plants"']
+  AQ:
+    pubmed: ['"Air Pollution, Indoor"[Mesh]', 'VOC*[tiab]']
+    openalex: ['"indoor air"', 'voc', 'vocs']
+  OF:
+    pubmed: ['office*[tiab]', 'workplace*[tiab]']
+    openalex: ['office', 'offices', 'workplace']
+
+blocks:
+  A:
+    questions: [Q1]
+    contributions: [C1]
+    start_year: 2015
+    formula: PL AND (AQ OR OF)
+  B:
+    questions: [Q2, Q1]
+    contributions: []
+    start_year: null
+    formula: PL OR AQ
+  R:
+    questions: [Q2]
+    contributions: [C2]
+    start_year: 2020
+    formula: null
+  L:
+    questions: [Q1]
+    contributions: [C1]
+    start_year: null
+    formula: null
+
+non_database_sources:
+  R:
+    queries: ['"plant sensor"', '"indoor air dataset"']
+    github: Repository search, one query per keyword.
+    sources: [github]
+  L:
+    llm_agent: Vendors of plant-based air purifiers that publish measurements.
+
+planned_searches:
+  - {search_id: S001, block: A, source: pubmed,   search_type: database,   acquisition: importer}
+  - {search_id: S002, block: A, source: openalex, search_type: database,   acquisition: runner}
+  - {search_id: S003, block: B, source: pubmed,   search_type: database,   acquisition: importer}
+  - {search_id: S004, block: R, source: github,   search_type: repository, acquisition: importer}
+  - {search_id: S005, block: L, source: other,    search_type: llm_agent,  acquisition: hand, query_file: prompts/S005.md}

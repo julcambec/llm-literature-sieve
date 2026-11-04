@@ -1,0 +1,40 @@
+# Example project for litsieve's tests and README: a small review on indoor plants
+# and office air quality.
+
+project: example-indoor-plants
+
+paths:
+  data_dir: data
+  workbook: review.xlsx
+  exports: exports
+  runs: runs
+  run_register: runs/register.csv
+  prompts: prompts
+
+dictionary:
+  fields: config/fields.yaml
+  lookups: config/lookups.yaml
+
+search_protocol: config/search_protocol.yaml
+
+backend: manual_chat
+
+questions:
+  Q1: {text: 'Do potted plants lower indoor VOC concentrations in occupied offices?'}
+  Q2: {text: 'Which low-cost sensors have been used to measure the effect?'}
+
+contributions:
+  C1:
+    name: Field measurements in occupied offices
+    anchors: {3: Measured VOC change in occupied offices, 2: Chamber study, 1: Other indoor air topic}
+  C2:
+    name: Low-cost sensor networks
+    anchors: {3: Sensor network for plant studies, 2: Sensor network for other indoor air, 1: Single sensors}
+
+tier_rule:
+  default: core
+  extended_if_any:
+    - {field_group: overlap, op: ge, value: 2}
+    - {field: uses, op: contains_any, value: [dataset]}
+
+coverage_rules: []

@@ -1,0 +1,50 @@
+lists:
+  status:
+    codes:
+      pending: Created from a screened hit.
+      excluded: Excluded at full text.
+      core_draft: Core fields drafted.
+      core_verified: Core fields verified.
+  uses:
+    codes:
+      dataset: Data we could reuse.
+      related_work: Cited in related work only.
+      none: No use.
+  search_type:
+    codes:
+      database: A bibliographic database query.
+      repository: A code, model or data hub.
+      llm_agent: A search run by an LLM agent.
+      citation_back: Backward chasing.
+      citation_fwd: Forward chasing.
+      similar_items: A similar-articles feature.
+      alert: An alert digest.
+  source:
+    open: true
+    codes:
+      pubmed: PubMed.
+      openalex: OpenAlex.
+      github: GitHub.
+      other: Any other source.
+  block:
+    from: search_protocol.yaml#blocks
+    extra:
+      NA: Not from a block.
+  question:
+    from: project.yaml#questions
+  contribution:
+    from: project.yaml#contributions
+  run_id:
+    from: runs/register.csv#run_id
+  field_use:
+    codes:
+      memo: The memo.
+      workflow: Bookkeeping.
+      scoping_review: A scoping review.
+  filled_by:
+    codes:
+      plan: Written at planning time.
+      runner: A runner or importer.
+      pipeline: Computed by Python.
+      llm: The model.
+      human: Me.

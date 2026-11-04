@@ -1,0 +1,67 @@
+types:
+  text: {json: string}
+  int:  {json: integer}
+  num:  {json: number, range: [0, 1]}
+  date: {json: string, format: date}
+  enum: {json: string}
+  list: {json: array}
+  bool: {json: boolean}
+
+levels:
+  searches:
+    plan: The row exists.
+    run: The export exists.
+    screen: Every new hit has a decision.
+  records:
+    pending: [screen]
+    core_draft: [screen, core]
+    core_verified: [screen, core]
+    excluded: [screen]
+
+sheets:
+  searches:
+    key: search_id
+    defaults: {filled_by: plan, needs_human_check: false, required_at: plan, use: [workflow]}
+    fields:
+      search_id: {type: text, pattern: '^S\d{3}$', reserved: true}
+      review_stage: {type: int, range: [1, 4]}
+      block: {type: enum, values: block, reserved: true}
+      questions: {type: list, values: question, tokens: [NA]}
+      contributions: {type: list, values: contribution, tokens: [NA]}
+      search_type: {type: enum, values: search_type}
+      source: {type: enum, values: source}
+      seed_record_id: {type: text, pattern: '^R\d{4}$', tokens: [NA]}
+      query: {type: text, reserved: true}
+      limits: {type: text, reserved: true}
+      date_run: {type: date, format: date, required_at: run, filled_by: runner, reserved: true}
+      n_hits: {type: int, range: [0, null], required_at: run, filled_by: runner}
+      n_screened: {type: int, range: [0, null], required_at: screen, filled_by: pipeline}
+      n_included: {type: int, range: [0, null], required_at: screen, filled_by: pipeline}
+      run_id: {type: enum, values: run_id, tokens: [NA], required_at: screen, filled_by: pipeline}
+
+  records:
+    key: record_id
+    defaults: {needs_human_check: true, filled_by: llm, required_at: core, use: [memo]}
+    fields:
+      record_id: {type: text, pattern: '^R\d{4}$', required_at: screen, needs_human_check: false, filled_by: pipeline}
+      status: {type: enum, values: status, required_at: screen, needs_human_check: false, filled_by: pipeline}
+      uses: {type: list, values: uses}
+      overlap_{id}:
+        for_each: contribution
+        description: Overlap with {ID}, "{name}".
+        type: int
+        range: [0, 3]
+        tokens: [NA]
+        field_group: overlap
+
+checks:
+  - name: search_counts_order
+    sheet: searches
+    kind: order
+    fields: [n_included, n_screened, n_hits]
+  - name: seed_iff_chase
+    sheet: searches
+    kind: conditional
+    when: {field: search_type, op: in, value: [citation_back, citation_fwd, similar_items]}
+    then: {field: seed_record_id, op: ne, value: NA}
+    else: {field: seed_record_id, op: eq, value: NA}

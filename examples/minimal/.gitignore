@@ -1,0 +1,4 @@
+# Files the example writes when run
+data/*
+!data/.gitkeep
+prompts/S005.md
