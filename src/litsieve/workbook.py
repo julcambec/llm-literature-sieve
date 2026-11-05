@@ -1,5 +1,4 @@
-"""
-Read and write workbook sheets as rows keyed by the sheet's key field.
+"""Read and write workbook sheets as rows keyed by the sheet's key field.
 
 Only cell values are touched here; drop-downs, filters and highlighting are build.py's
 job. Columns are found by header name, so column order in the sheet does not matter,
@@ -127,8 +126,7 @@ def upsert_rows(
     frozen_reason: Callable[[dict[str, Any]], str | None] = lambda row: None,
     update: bool = False,
 ) -> UpsertReport:
-    """
-    Add new rows; for existing rows, compare `compare` fields and rewrite them only
+    """Add new rows; for existing rows, compare `compare` fields and rewrite them only
     if `update` is set and `frozen_reason` returns None for the existing row.
 
     The workbook and sheet are created if missing. The file is written atomically.
@@ -199,6 +197,63 @@ def upsert_rows(
     if report.changed or header_changed or created or new_sheet:
         _save(wb, path)
     return report
+
+
+def ensure_writable(path: Path) -> None:
+    """Fail early if the workbook exists but is locked (open in Excel on Windows)."""
+    if not path.is_file():
+        return
+    try:
+        with path.open("r+b"):
+            pass
+    except PermissionError as exc:
+        raise WorkbookError(f"Cannot write {path}; close it in Excel and try again") from exc
+
+
+def find_row(
+    path: Path, sheet: str, fields: list[Field], key: str, value: str
+) -> dict[str, Any] | None:
+    """The row whose key equals `value`, or None."""
+    for row in read_rows(path, sheet, fields):
+        if cell_text(row.get(key)) == value:
+            return row
+    return None
+
+
+def update_row(
+    path: Path, sheet: str, fields: list[Field], key: str, value: str, values: dict[str, Any]
+) -> None:
+    """Set `values` on the existing row whose key equals `value`; other cells are kept."""
+    if not path.is_file():
+        raise WorkbookError(f"Workbook not found: {path}")
+    wb = load_workbook(path)
+    if sheet not in wb.sheetnames:
+        raise WorkbookError(f"{path.name} has no {sheet} sheet")
+    ws = wb[sheet]
+    by_name = {f.name: f for f in fields}
+    header = _header(ws)
+    for name in values:
+        if name not in by_name:
+            raise WorkbookError(f"Unknown field {sheet}.{name}")
+        if name not in header:
+            header.append(name)
+            _set(ws, 1, len(header), name)
+    col = {name: i + 1 for i, name in enumerate(header)}
+    if key not in col:
+        raise WorkbookError(f"{sheet} has no {key} column")
+    target = next(
+        (
+            r
+            for r in range(2, ws.max_row + 1)
+            if cell_text(ws.cell(row=r, column=col[key]).value) == value
+        ),
+        None,
+    )
+    if target is None:
+        raise WorkbookError(f"{sheet} has no row {value}")
+    for name, v in values.items():
+        _set(ws, target, col[name], to_cell(by_name[name], v))
+    _save(wb, path)
 
 
 def _save(wb: Workbook, path: Path) -> None:

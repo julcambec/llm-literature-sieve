@@ -133,3 +133,228 @@ def plan(
 
     for s in skipped:
         typer.echo(f"  {s.search_id}: skipped, {s.reason}")
+
+
+def _report(result) -> None:
+    from litsieve.sources.export import summarize
+
+    typer.echo(f"{result.search_id}: {summarize(result.rows)}")
+    typer.echo(f"  export   {result.export_path}")
+    typer.echo(f"  raw      {result.raw_path}")
+    typer.echo(f"  logged   date_run {result.date_run}, n_hits {result.n_hits}")
+    for warning in result.warnings:
+        typer.echo(f"  warning: {warning}")
+
+
+@app.command("import")
+def import_cmd(
+    ctx: typer.Context,
+    search_id: Annotated[str, typer.Argument(help="Search ID, e.g. S001.")],
+    file: Annotated[Path, typer.Argument(help="The file exported from the source.")],
+    date: Annotated[
+        str | None,
+        typer.Option("--date", help="Date the search ran (YYYY-MM-DD), if date_run is blank."),
+    ] = None,
+    fmt: Annotated[
+        str | None, typer.Option("--format", help="Importer to use (default: the search's source).")
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Replace an existing export that has no screening decisions."),
+    ] = False,
+) -> None:
+    """Step 2: convert a hand-exported file into the common export format."""
+    from litsieve.acquire import AcquireError, import_search
+    from litsieve.sources import ImportFormatError
+
+    project = _load(ctx)
+    try:
+        result = import_search(project, search_id, file, run_date=date, fmt=fmt, force=force)
+    except (AcquireError, ImportFormatError, WorkbookError, ConfigError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    _report(result)
+
+
+@app.command()
+def run(
+    ctx: typer.Context,
+    search_id: Annotated[str, typer.Argument(help="Search ID, e.g. S003.")],
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Replace an existing export that has no screening decisions."),
+    ] = False,
+) -> None:
+    """Step 2: run a scripted search (e.g. OpenAlex) from its logged query."""
+    from litsieve.acquire import AcquireError, run_search
+    from litsieve.sources import RunnerError
+
+    project = _load(ctx)
+    try:
+        result = run_search(project, search_id, force=force)
+    except (AcquireError, RunnerError, WorkbookError, ConfigError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    _report(result)
+
+
+STATUS_LABELS = {
+    "found": "found",
+    "found_title": "title only",
+    "manual": "manual",
+    "missed": "MISSED",
+}
+
+
+@app.command()
+def recall(
+    ctx: typer.Context,
+    search_ids: Annotated[
+        list[str] | None,
+        typer.Argument(help="Searches to check together, e.g. S001 (or use --block)."),
+    ] = None,
+    block: Annotated[
+        str | None, typer.Option("--block", help="Check the union of all exports of this block.")
+    ] = None,
+) -> None:
+    """Step 3: check that the exports retrieve the protocol's seed records."""
+    from litsieve.recall import RecallError, check_recall
+
+    project = _load(ctx)
+    try:
+        report = check_recall(project, search_ids=search_ids or None, block=block)
+    except (RecallError, ConfigError, WorkbookError) as exc:
+        problems = exc.problems if isinstance(exc, ConfigError) else [str(exc)]
+        for problem in problems:
+            typer.echo(problem, err=True)
+        raise typer.Exit(2) from exc
+
+    scope = ", ".join(report.search_ids)
+    typer.echo(f"Recall check of {scope} (block {', '.join(report.blocks) or 'none'})")
+    for b in report.blocks_without_seeds:
+        typer.echo(f"  Block {b} has no seeds; it relies on stop rules and citation chasing.")
+    if not report.results:
+        typer.echo("  No seeds are expected in this scope.")
+    width = max((len(r.seed.short_cite) for r in report.results), default=0)
+    for r in report.results:
+        where = ", ".join(f"{hit} ({via})" for hit, via in r.matches)
+        detail = "; ".join(x for x in (where, r.note) if x)
+        typer.echo(f"  {STATUS_LABELS[r.status]:<10} {r.seed.short_cite:<{width}}  {detail}")
+
+    if report.missing_exports:
+        typer.echo(f"  Partial: no export yet for {', '.join(report.missing_exports)}.")
+    n_missed = len(report.missed)
+    if not n_missed:
+        typer.echo("Result: every seed in scope was retrieved.")
+        return
+    if report.mode == "block":
+        typer.echo(
+            f"Result: {n_missed} seed(s) missed by the block. Add the missing term and log the "
+            "query as a new search in the same block; never edit a query that has run."
+        )
+    else:
+        typer.echo(
+            f"Result: {n_missed} seed(s) missed by {scope}. First check whether the source "
+            "indexes them at all; the block check (--block) is the gate before screening."
+        )
+    raise typer.Exit(1)
+
+
+screen_app = typer.Typer(
+    help="Step 5: LLM title-and-abstract screening, one hit per prompt.", no_args_is_help=True
+)
+app.add_typer(screen_app, name="screen")
+
+
+@screen_app.command("prepare")
+def screen_prepare(
+    ctx: typer.Context,
+    search_ids: Annotated[
+        list[str], typer.Argument(help="Searches whose unscreened hits to include.")
+    ],
+    model: Annotated[
+        str, typer.Option("--model", help="The model you will paste the prompts into.")
+    ],
+    limit: Annotated[
+        int | None, typer.Option("--limit", help="At most this many hits (for a test run).")
+    ] = None,
+    prompt: Annotated[
+        str | None,
+        typer.Option(
+            "--prompt", help="Template in the prompts folder (default: latest screen_vN)."
+        ),
+    ] = None,
+    include_pending: Annotated[
+        bool,
+        typer.Option(
+            "--include-pending", help="Also include hits waiting for replies in earlier runs."
+        ),
+    ] = False,
+) -> None:
+    """Open a screening run: write one prompt per hit and register the run."""
+    from litsieve.screen import ScreenError, prepare_screen
+
+    project = _load(ctx)
+    try:
+        result = prepare_screen(
+            project,
+            search_ids,
+            model,
+            limit=limit,
+            prompt_id=prompt,
+            include_pending=include_pending,
+        )
+    except (ScreenError, ConfigError, WorkbookError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    if result.template_created:
+        typer.echo(
+            f"Created {project.path('prompts') / (result.prompt_id + '.md')} from the engine default; commit it."
+        )
+    counts = ", ".join(f"{sid}: {n}" for sid, n in result.per_search.items())
+    typer.echo(
+        f"{result.run_id}: {result.n_prompts} prompts ({counts}), template {result.prompt_id}"
+    )
+    typer.echo(f"  prompts  {result.folder / 'all_prompts.md'}")
+    typer.echo(f"  replies  {result.folder / 'replies.txt'}")
+    typer.echo("Paste each prompt into a new chat, append each JSON reply to replies.txt, then run")
+    typer.echo(f"  litsieve screen ingest {result.run_id}")
+
+
+@screen_app.command("ingest")
+def screen_ingest(
+    ctx: typer.Context,
+    run_id: Annotated[str, typer.Argument(help="The screening run, e.g. RUN01.")],
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force", help="Overwrite earlier LLM values that differ from these replies."
+        ),
+    ] = False,
+) -> None:
+    """Validate the replies of a run and write them into the exports."""
+    from litsieve.screen import ScreenError, ingest_screen
+
+    project = _load(ctx)
+    try:
+        r = ingest_screen(project, run_id, force=force)
+    except (ScreenError, ConfigError, WorkbookError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(
+        f"{r.run_id}: {len(r.merged)} merged, {len(r.unchanged)} unchanged, {len(r.invalid)} invalid, "
+        f"{len(r.conflicts)} conflicting, {len(r.missing)} without a reply (of {r.n_items})"
+    )
+    for hit_id, problems in r.invalid.items():
+        typer.echo(f"  invalid  {hit_id}: {'; '.join(problems)}")
+    for hit_id, fields in r.conflicts.items():
+        typer.echo(
+            f"  conflict {hit_id}: differs from earlier LLM values in {fields} (use --force)"
+        )
+    if r.missing:
+        shown = ", ".join(r.missing[:10]) + (" ..." if len(r.missing) > 10 else "")
+        typer.echo(f"  waiting  {shown}")
+    for sid in r.completed_searches:
+        typer.echo(f"  {sid}: every hit now has an LLM decision")
+    if r.invalid or r.conflicts:
+        raise typer.Exit(1)

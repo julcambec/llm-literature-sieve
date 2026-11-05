@@ -16,7 +16,8 @@ empty (the run register does not exist before the first run).
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -50,6 +51,20 @@ def load_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
+def read_dotenv(path: Path) -> dict[str, str]:
+    """KEY=VALUE lines of a .env file; comments, blank lines and `export` are allowed."""
+    values: dict[str, str] = {}
+    if not path.is_file():
+        return values
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.removeprefix("export ").partition("=")
+        values[key.strip()] = value.strip().strip("'\"")
+    return values
+
+
 @dataclass
 class Project:
     """A loaded project: its config files, paths and dictionary."""
@@ -60,6 +75,15 @@ class Project:
     protocol_path: Path
     protocol: dict[str, Any]
     dictionary: Dictionary | None = None
+    _dotenv: dict[str, str] | None = field(default=None, init=False, repr=False)
+
+    def env(self, name: str) -> str | None:
+        """A setting from the environment, else from the project root's .env file."""
+        if os.environ.get(name):
+            return os.environ[name]
+        if self._dotenv is None:
+            self._dotenv = read_dotenv(self.root / ".env")
+        return self._dotenv.get(name) or None
 
     @property
     def data_dir(self) -> Path:
