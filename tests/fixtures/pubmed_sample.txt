@@ -1,0 +1,37 @@
+
+PMID- 30000001
+OWN - NLM
+STAT- MEDLINE
+DP  - 2019 Mar 4
+TI  - Potted plants and volatile organic compounds in open-plan offices: a
+      field study.
+LID - 10.1000/EXAMPLE.2019.001 [doi]
+AB  - Background: We measured VOC levels in twelve offices before and after
+      adding plants. Results: Concentrations fell slightly.
+FAU - Virtanen, Aino
+AU  - Virtanen A
+FAU - Smith, John Q
+AU  - Smith JQ
+LA  - eng
+PT  - Journal Article
+PT  - Randomized Controlled Trial
+TA  - Indoor Air
+JT  - Indoor air
+AID - 10.1000/EXAMPLE.2019.001 [doi]
+AID - PMC6000001 [pmc]
+PMC - PMC6000001
+
+PMID- 30000002
+DP  - 2021
+TI  - Sensor networks for indoor air.
+LID - S0000-0000(21)00001-1 [pii]
+AID - 10.1000/example.2021.002 [doi]
+AU  - Doe J
+PT  - Journal Article
+JT  - Building and environment
+
+PMID- 30000003
+DP  - 2020 Spring
+BTI - Houseplants: a handbook
+CN  - Indoor Air Working Group
+PT  - Book
