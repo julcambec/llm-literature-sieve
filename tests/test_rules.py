@@ -28,7 +28,11 @@ def test_good_plan_row(d):
 
 
 def test_required_by_level(d):
-    assert check_row(d, "searches", GOOD, "run") == ["date_run: required", "n_hits: required"]
+    assert check_row(d, "searches", GOOD, "run") == [
+        "date_run: required",
+        "n_hits: required",
+        "export_file: required",
+    ]
 
 
 @pytest.mark.parametrize(

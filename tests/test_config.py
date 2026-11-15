@@ -26,6 +26,10 @@ def test_run_ids_come_from_register(example):
     assert load_project(example).dictionary.codes("run_id") == ["RUN01", "RUN02"]
 
 
+def _check(doc, name):
+    return next(c for c in doc["checks"] if c["name"] == name)
+
+
 def _edit(path, change):
     doc = yaml.safe_load(path.read_text())
     change(doc)
@@ -36,7 +40,7 @@ def test_reports_every_problem(example):
     def break_fields(doc):
         doc["sheets"]["searches"]["fields"]["source"]["values"] = "sources"  # typo
         doc["sheets"]["records"]["fields"]["uses"]["colour"] = "red"  # unknown key
-        doc["checks"][1]["then"]["value"] = "N/A"  # not a valid value
+        _check(doc, "seed_iff_chase")["then"]["value"] = "N/A"  # not a valid value
 
     _edit(example / "config" / "fields.yaml", break_fields)
     with pytest.raises(ConfigError) as err:
@@ -50,7 +54,7 @@ def test_reports_every_problem(example):
 def test_bad_condition_value_is_caught(example):
     _edit(
         example / "config" / "fields.yaml",
-        lambda doc: doc["checks"][1]["when"].update(value=["citation_sideways"]),
+        lambda doc: _check(doc, "seed_iff_chase")["when"].update(value=["citation_sideways"]),
     )
     with pytest.raises(ConfigError, match="citation_sideways"):
         load_project(example)
