@@ -12,6 +12,11 @@ levels:
     plan: The row exists.
     run: The export exists.
     screen: Every new hit has a decision.
+  exports:
+    import: The hit exists in the export.
+    screen: The export has been through the screening merge.
+  run_register:
+    create: The row exists.
   records:
     pending: [screen]
     core_draft: [screen, core]
@@ -38,6 +43,190 @@ sheets:
       n_screened: {type: int, range: [0, null], required_at: screen, filled_by: pipeline}
       n_included: {type: int, range: [0, null], required_at: screen, filled_by: pipeline}
       run_id: {type: enum, values: run_id, tokens: [NA], required_at: screen, filled_by: pipeline}
+      export_file: {type: text, required_at: run, filled_by: runner}
+
+  exports:
+    description: >-
+      Common export format: one CSV per search at exports/<search_id>.csv, written by a
+      runner or an importer, or by hand for sources without an export. Not a workbook sheet.
+    file: true
+    key: hit_id
+    defaults: {filled_by: runner, needs_human_check: false, required_at: import}
+    exempt_if:
+      screen: {field: dup_of, op: nonblank}           # duplicates are not screened
+    fields:
+      hit_id:
+        description: <search_id>-<position in the export, 4 digits>; stable.
+        type: text
+        pattern: '^S\d{3}-\d{4}$'
+        use: [workflow]
+        reserved: true
+      search_id:
+        description: Search that returned the hit.
+        type: text
+        pattern: '^S\d{3}$'
+        use: [workflow]
+        reserved: true
+      rank:
+        description: Position in the source's own result order; blank where the source has none.
+        type: int
+        range: [1, null]
+        required_at: null
+        use: [workflow]
+      source_id:
+        description: >-
+          The source's native ID: Scopus EID, OpenAlex work ID, PMID for PubMed, FDA
+          submission number, repository URL.
+        type: text
+        use: [workflow]
+      doi:
+        description: Bare DOI, lowercase, without the https://doi.org/ prefix.
+        type: text
+        pattern: '^10\.\d{4,9}/\S+$'
+        required_at: null
+        use: [workflow]
+        reserved: true
+      pmid:
+        description: PubMed ID.
+        type: text
+        pattern: '^\d+$'
+        required_at: null
+        use: [workflow]
+        reserved: true
+      pmcid:
+        description: PubMed Central ID.
+        type: text
+        pattern: '^PMC\d+$'
+        required_at: null
+        use: [workflow]
+      arxiv_id:
+        description: arXiv ID without version suffix.
+        type: text
+        pattern: '^(\d{4}\.\d{4,5}|[a-z-]+(\.[A-Z]{2})?/\d{7})$'
+        required_at: null
+        use: [workflow]
+        reserved: true
+      title:
+        description: Title, or product, dataset or model name.
+        type: text
+        use: [workflow]
+        reserved: true
+      abstract:
+        description: >-
+          Abstract; for registry, repository and hand-entered hits, the description or
+          card text.
+        type: text
+        required_at: null
+        use: [workflow]
+      authors:
+        description: Authors as "Family Initials", separated by ';'.
+        type: text
+        required_at: null
+        use: [workflow]
+      year:
+        description: Publication year, or release or clearance year.
+        type: int
+        range: [1900, 2100]
+        use: [workflow]
+      venue:
+        description: Journal, conference, server, registry or hub.
+        type: text
+        required_at: null
+        use: [workflow]
+      doc_type:
+        description: The source's own document type label, unmapped.
+        type: text
+        required_at: null
+        use: [workflow]
+      url:
+        description: Landing page.
+        type: text
+        format: url
+        required_at: null
+        use: [workflow]
+      dup_of:
+        description: >-
+          Set by deduplication: the record_id or hit_id this hit duplicates; blank for a
+          new hit.
+        type: text
+        pattern: '^(R\d{4}|S\d{3}-\d{4})$'
+        required_at: null
+        filled_by: pipeline
+        use: [workflow]
+        reserved: true
+      llm_decision:
+        description: >-
+          Screening decision on title and abstract, against the general criteria and the
+          block's inclusion criterion.
+        type: enum
+        values: screen_decision
+        required_at: screen
+        filled_by: llm
+        pass: screen
+        use: [workflow]
+        reserved: true
+      llm_exclusion_reason:
+        description: For an exclusion, the criterion it meets, as an exclusion_reason code; NA otherwise.
+        type: enum
+        values: exclusion_reason
+        tokens: [NA]
+        required_at: screen
+        filled_by: llm
+        pass: screen
+        use: [workflow]          # for screening-accuracy counts; never cited
+      llm_note:
+        description: For unsure and borderline decisions, what decided it; optional.
+        type: text
+        max_words: 20
+        required_at: null
+        filled_by: llm
+        pass: screen
+        use: [workflow]
+      decision:
+        description: My screening decision; pre-filled from llm_decision and corrected by me.
+        type: enum
+        values: screen_decision
+        required_at: screen
+        needs_human_check: true
+        filled_by: [pipeline, human]
+        use: [workflow, scoping_review]
+        reserved: true
+
+  run_register:
+    description: >-
+      One row per LLM run at runs/register.csv, appended by extract.py. Not a workbook
+      sheet; copied into the `lookups` sheet at each build.
+    file: true
+    key: run_id
+    defaults: {filled_by: pipeline, needs_human_check: false, required_at: create, use: [scoping_review, workflow]}
+    fields:
+      run_id:
+        description: Stable ID.
+        type: text
+        pattern: '^RUN\d{2}$'
+        reserved: true
+      date:
+        description: Date of the run.
+        type: date
+        format: date
+      model:
+        description: Exact model string; for manual_chat runs, the model name the chat interface shows.
+        type: text
+      prompt_id:
+        description: Versioned prompt file used.
+        type: text
+      pass:
+        description: Pass the run performed.
+        type: enum
+        values: run_pass
+      n_records:
+        description: Hits or records the run processed.
+        type: int
+        range: [0, null]
+      backend:
+        description: How the prompt reached the model.
+        type: enum
+        values: backend
 
   records:
     key: record_id
@@ -54,7 +243,22 @@ sheets:
         tokens: [NA]
         field_group: overlap
 
+passes:
+  screen:
+    unit: one export hit per prompt
+    sheet: exports
+    key: hit_id
+    given: [hit_id, title, abstract, year, venue, doc_type]
+    skip_if: {field: dup_of, op: nonblank}
+
 checks:
+  - name: screen_reason_iff_exclude
+    sheet: exports
+    kind: conditional
+    at: screen
+    when: {field: llm_decision, op: eq, value: exclude}
+    then: {field: llm_exclusion_reason, op: ne, value: NA}
+    else: {field: llm_exclusion_reason, op: eq, value: NA}
   - name: search_counts_order
     sheet: searches
     kind: order
