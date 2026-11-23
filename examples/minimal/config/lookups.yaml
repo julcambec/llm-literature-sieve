@@ -36,6 +36,22 @@ lists:
     from: project.yaml#contributions
   run_id:
     from: runs/register.csv#run_id
+  screen_decision:
+    codes:
+      include: Meets the inclusion criterion.
+      exclude: Clearly fails it.
+      unsure: Cannot be decided from title and abstract.
+  exclusion_reason:
+    codes:
+      off_topic: Not about the review's subject.
+      other: Any other reason.
+  run_pass:
+    codes:
+      screen: Title and abstract screening.
+  backend:
+    codes:
+      manual_chat: Pasted into a chat by hand.
+      api: Sent through an API.
   field_use:
     codes:
       memo: The memo.
