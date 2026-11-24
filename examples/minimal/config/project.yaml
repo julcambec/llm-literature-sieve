@@ -1,11 +1,12 @@
 # Example project for litsieve's tests and README: a small review on indoor plants
-# and office air quality.
+# and office air quality. Unrelated to any real review.
 
 project: example-indoor-plants
 
 paths:
   data_dir: data
   workbook: review.xlsx
+  raw_exports: raw
   exports: exports
   runs: runs
   run_register: runs/register.csv
